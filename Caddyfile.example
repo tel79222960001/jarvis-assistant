@@ -1,0 +1,3 @@
+ai.example.com {
+    reverse_proxy jarvis-assistant:8000
+}
