@@ -1,9 +1,12 @@
 from typing import Any
+
 import httpx
 from fastapi import HTTPException, Request
+
 from .ai import AIService
 from .config import Settings
 from .storage import ConversationStore
+
 
 class TelegramService:
     def __init__(self, settings: Settings, ai: AIService, store: ConversationStore):
@@ -26,7 +29,8 @@ class TelegramService:
         chat_id = chat.get("id")
         user_id = sender.get("id")
         text = (message.get("text") or "").strip()
-        if not chat_id or not user_id or not text:
+
+        if not chat_id or not user_id:
             return {"ok": True}
 
         allowed = self.settings.telegram_allowed_ids
@@ -35,13 +39,46 @@ class TelegramService:
             return {"ok": True}
 
         key = str(user_id)
+
+        if not text:
+            if message.get("voice"):
+                await self.send_message(
+                    chat_id,
+                    "Голосовые сообщения подключим следующим этапом. Пока отправьте вопрос текстом.",
+                )
+            return {"ok": True}
+
         if text.startswith("/start"):
-            answer = "Jarvis подключён. Напишите вопрос.\n/new — новый диалог\n/help — помощь"
+            answer = (
+                "Jarvis подключён. Напишите вопрос.\n"
+                "/new — новый диалог\n"
+                "/model — текущая AI-модель\n"
+                "/status — состояние сервиса\n"
+                "/help — помощь"
+            )
         elif text.startswith("/new"):
             self.store.clear("telegram", key)
             answer = "Контекст очищен. Начинаем новый диалог."
+        elif text.startswith("/model"):
+            configured = self.settings.selected_model
+            actual = self.ai.get_last_model("telegram", key)
+            if actual:
+                answer = f"Настроено: {configured}\nПоследний ответ: {actual}"
+            else:
+                answer = f"Настроено: {configured}\nФактическая модель появится после первого AI-ответа."
+        elif text.startswith("/status"):
+            answer = (
+                "Jarvis работает.\n"
+                f"AI endpoint: {self.settings.ai_base_url}\n"
+                f"Модель: {self.settings.selected_model}"
+            )
         elif text.startswith("/help"):
-            answer = "Отправьте текстовый вопрос. Команда /new очищает историю диалога."
+            answer = (
+                "Отправьте текстовый вопрос.\n"
+                "/new — очистить историю\n"
+                "/model — показать модель\n"
+                "/status — проверить сервис"
+            )
         else:
             answer = await self.ai.ask("telegram", key, text)
 
@@ -51,13 +88,18 @@ class TelegramService:
     async def send_message(self, chat_id: int, text: str):
         if not self.settings.telegram_bot_token:
             raise RuntimeError("TELEGRAM_BOT_TOKEN is not configured")
+
         url = f"https://api.telegram.org/bot{self.settings.telegram_bot_token}/sendMessage"
-        chunks = [text[i:i+4000] for i in range(0, len(text), 4000)] or [""]
+        chunks = [text[i:i + 4000] for i in range(0, len(text), 4000)] or [""]
+
         async with httpx.AsyncClient(timeout=15) as client:
             for chunk in chunks:
-                response = await client.post(url, json={
-                    "chat_id": chat_id,
-                    "text": chunk,
-                    "disable_web_page_preview": True,
-                })
+                response = await client.post(
+                    url,
+                    json={
+                        "chat_id": chat_id,
+                        "text": chunk,
+                        "disable_web_page_preview": True,
+                    },
+                )
                 response.raise_for_status()
