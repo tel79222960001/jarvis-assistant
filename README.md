@@ -3,18 +3,18 @@
 Единый AI-шлюз для:
 - Telegram-бота
 - навыка Алисы
-- OpenAI API
+- OpenRouter / OpenAI-compatible API
 
 ## Архитектура
 
-Telegram / Alice -> Caddy HTTPS -> FastAPI -> OpenAI Responses API
+Telegram / Alice -> Caddy HTTPS -> FastAPI -> OpenRouter -> AI model
 
-Приложение запускается в Docker и подключается к внешней сети `app-net`.
+По умолчанию используется `openrouter/free` — бесплатный роутер OpenRouter.
 
 ## Быстрый старт
 
 1. Скопируйте `.env.example` в `.env`.
-2. Заполните секреты локально на сервере.
+2. Заполните `OPENROUTER_API_KEY` и секреты Telegram/Alice локально на сервере.
 3. Создайте сеть (один раз):
 
 ```bash
@@ -27,19 +27,11 @@ docker network create app-net
 docker compose up -d --build
 ```
 
-5. Проверка:
-
-```bash
-curl http://127.0.0.1:8000/health
-```
-
 ## Безопасность
 
-Никогда не коммитьте `.env`, API-ключи OpenAI и токен Telegram-бота.
+Никогда не коммитьте `.env`, API-ключи и токены.
 
 ## Webhook-и
 
-- Telegram: `https://<ваш-домен>/telegram/webhook`
-- Алиса: `https://<ваш-домен>/alice`
-
-Подробности настройки находятся в `docs/DEPLOY.md`.
+- Telegram: `https://jarvis.66-151-32-64.sslip.io/telegram/webhook`
+- Алиса: `https://jarvis.66-151-32-64.sslip.io/alice/<token>`
